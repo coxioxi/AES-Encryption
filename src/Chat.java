@@ -23,7 +23,7 @@ public class Chat {
     public static final BigInteger G = new BigInteger("105003596169089394773278740673883282922302458450353634151991199816363405534040161825176553806702944696699090103171939463118920452576175890312021100994471453870037718208222180811650804379510819329594775775023182511986555583053247825364627124790486621568154018452705388790732042842238310957220975500918398046266");
     public static final int LENGTH = 1023;
     public static final int MATRIX_LEN = 4;
-    private byte[] key;
+    private byte[] key = new byte[16];
     private int originalMessageLen;
 
     public static void main(String[] args) throws UnknownHostException, IOException {
@@ -84,23 +84,13 @@ public class Chat {
         System.out.println();
 
         // TODO: Negotiate key using Diffie-Hellman here
-        if(!client) {
-            BigInteger b = new BigInteger(LENGTH, new Random());
-            BigInteger B = G.modPow(b, P);
-            netOut.writeObject(B);
-            netOut.flush();
-
-            BigInteger clientAValue = (BigInteger) netIn.readObject();
-            serverS = clientAValue.modPow(b, P);
-        } else {
-            BigInteger serverBValue = (BigInteger) netIn.readObject();
-            BigInteger a = new BigInteger(LENGTH, new Random());
-            BigInteger A = G.modPow(a, P);
-            netOut.writeObject(A);
-            netOut.flush();
-
-            clientS = serverBValue.modPow(a, P);
-        }
+        BigInteger b = new BigInteger(LENGTH, new Random());
+        BigInteger B = G.modPow(b, P);
+        netOut.writeObject(B);
+        netOut.flush();
+        BigInteger clientAValue = (BigInteger) netIn.readObject();
+        byte[] largeKey = clientAValue.modPow(b, P).toByteArray();
+        System.arraycopy(largeKey, 0, key, 0, 16);
 
         sender = new Sender();
         receiver = new Receiver();
@@ -133,28 +123,7 @@ public class Chat {
                         System.arraycopy(line.getBytes(), 0, bytes, 0, line.getBytes().length);
 
                         // TODO: Encrypt bytes here before sending them
-                        if (serverS.equals(clientS)) // If server and client agreed on a key
-                            key = serverS.toByteArray();
-                        else
-                            System.out.println("Failed to generate a key");
-
-                        byte[][] matrix = new byte[MATRIX_LEN][MATRIX_LEN];
-
-                        int count = 0;
-                        for (int col = 0; col < MATRIX_LEN; col++) {
-                            for (int row = 0; row < MATRIX_LEN; row++) {
-                                matrix[row][col] = bytes[count];
-                                ++count;
-                            }
-                        }
-
-                        byte[] roundKey = new byte[4];
-                        for (int i = 0; i < 10; i++) {
-                            if(i == 0) {
-
-                            }
-
-                        }
+                        byte[] NewBytes = AESEncryption(bytes);
 
                         netOut.writeObject(bytes);
                         netOut.flush();
@@ -169,6 +138,30 @@ public class Chat {
                 } catch( IOException e ) {}
             }
         }
+    }
+
+    private byte[] AESEncryption(byte[] bytes){
+        byte[][] matrix = new byte[MATRIX_LEN][MATRIX_LEN];
+
+        for(int i = 0; i < bytes.length; ++i) {
+            int count = 0;
+            for (int col = 0; col < MATRIX_LEN; col++) {
+                for (int row = 0; row < MATRIX_LEN; row++) {
+                    matrix[row][col] = bytes[count];
+                    ++count;
+                }
+            }
+
+            byte[] roundKey = new byte[4];
+            for (int j = 0; j < 10; j++) {
+                if (j == 0) {
+
+                }
+
+            }
+        }
+
+        return bytes;
     }
 
     private class Receiver extends Thread {
