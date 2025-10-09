@@ -5,6 +5,7 @@ import java.math.BigInteger;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.Arrays;
 import java.util.Random;
 import java.util.Scanner;
 
@@ -140,6 +141,7 @@ public class Chat {
         BigInteger AValue = (BigInteger) netIn.readObject();
         byte[] largeKey = AValue.modPow(b, P).toByteArray();
         System.arraycopy(largeKey, 0, key, 0, KEY_LENGTH); // Take only the first 16 bits from original key
+        System.out.println(Arrays.toString(key));
 
         sender = new Sender();
         receiver = new Receiver();
@@ -165,12 +167,8 @@ public class Chat {
                         originalMessageLen = line.getBytes().length;
 
                         // Padding the message with 0s so it is a multiple of 16
-                        int padding = 0;
-                        if(line.getBytes().length % KEY_LENGTH != 0){
-                            padding = KEY_LENGTH - line.getBytes().length % KEY_LENGTH; // Number of 0's to add to message
-                        }
-                        byte[] bytes = new byte[line.getBytes().length + padding];
-                        System.arraycopy(line.getBytes(), 0, bytes, 0, line.getBytes().length);
+                        byte[] bytes = padding(line);
+                        System.arraycopy(line.getBytes(), 0, bytes, 0, originalMessageLen);
 
                         // TODO: Encrypt bytes here before sending them
 
@@ -187,6 +185,23 @@ public class Chat {
                 } catch( IOException e ) {}
             }
         }
+    }
+
+    /**
+     * Pads the input string to make its length a multiple of the AES block size (16 bytes).
+     *
+     * @param line the input string to be padded
+     * @return a byte array with zero-padding added as needed
+     */
+    private byte[] padding(String line) {
+        int padding = 0;
+
+        if(originalMessageLen >= KEY_LENGTH && line.getBytes().length % KEY_LENGTH != 0)
+            padding = KEY_LENGTH - originalMessageLen % KEY_LENGTH; // Number of 0's to add to message
+        else if (originalMessageLen < KEY_LENGTH)
+            padding = KEY_LENGTH - originalMessageLen; // Number of 0's to add to message if message is shorter than 16
+
+        return new byte[originalMessageLen + padding];
     }
 
     /**
@@ -269,7 +284,7 @@ public class Chat {
 
     /**
      * Expands a 16-byte AES key into all round keys.
-     * Generates NUM_ROUNDS + 1 round keys (16 bytes each) for AES encryption.
+     * Generates NUM_ROUNDS + 1 round keys for AES encryption.
      *
      * @param key the original 16-byte AES key
      * @return a 2D array of round keys, each 16 bytes
