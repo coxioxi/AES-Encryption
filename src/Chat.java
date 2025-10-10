@@ -141,7 +141,15 @@ public class Chat {
         BigInteger AValue = (BigInteger) netIn.readObject();
         byte[] largeKey = AValue.modPow(b, P).toByteArray();
         System.arraycopy(largeKey, 0, key, 0, KEY_LENGTH); // Take only the first 16 bits from original key
-        System.out.println(Arrays.toString(key));
+        System.out.println("Key: " + Arrays.toString(key));
+
+        // Debug print
+        System.out.println();
+        byte[][] keys = expandKey(key);
+        for (int i = 0; i < keys.length; i++) {
+            System.out.println("Round " + i + " Key: " + Arrays.toString(keys[i]));
+        }
+        System.out.println();
 
         sender = new Sender();
         receiver = new Receiver();
@@ -167,7 +175,7 @@ public class Chat {
                         originalMessageLen = line.getBytes().length;
 
                         // Padding the message with 0s so it is a multiple of 16
-                        byte[] bytes = padding(line);
+                        byte[] bytes = padding();
                         System.arraycopy(line.getBytes(), 0, bytes, 0, originalMessageLen);
 
                         // TODO: Encrypt bytes here before sending them
@@ -190,13 +198,12 @@ public class Chat {
     /**
      * Pads the input string to make its length a multiple of the AES block size (16 bytes).
      *
-     * @param line the input string to be padded
      * @return a byte array with zero-padding added as needed
      */
-    private byte[] padding(String line) {
+    private byte[] padding() {
         int padding = 0;
 
-        if(originalMessageLen >= KEY_LENGTH && line.getBytes().length % KEY_LENGTH != 0)
+        if(originalMessageLen > KEY_LENGTH && originalMessageLen % KEY_LENGTH != 0)
             padding = KEY_LENGTH - originalMessageLen % KEY_LENGTH; // Number of 0's to add to message
         else if (originalMessageLen < KEY_LENGTH)
             padding = KEY_LENGTH - originalMessageLen; // Number of 0's to add to message if message is shorter than 16
