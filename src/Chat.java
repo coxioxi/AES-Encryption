@@ -140,7 +140,7 @@ public class Chat {
 
         BigInteger AValue = (BigInteger) netIn.readObject();
         byte[] largeKey = AValue.modPow(b, P).toByteArray();
-        System.arraycopy(largeKey, 0, key, 0, KEY_LENGTH); // Take only the first 16 bits from original key
+        System.arraycopy(largeKey, 0, key, 0, KEY_LENGTH); // Take only the first 16 bytes from original key
         System.out.println("Key: " + Arrays.toString(key));
 
         // Debug print
@@ -233,12 +233,7 @@ public class Chat {
         }
 
         // Initial Round: Add round key
-        int count = 0;
-        for (int col = 0; col < MATRIX_LEN; col++) {
-            for (int row = 0; row < MATRIX_LEN; row++) {
-                matrix[col][row] ^= roundKeys[0][count++];
-            }
-        }
+        addRoundKey(matrix, roundKeys);
 
         // Normal rounds (1-9)
         for (int round = 1; round <= NUM_ROUNDS; round++) {
@@ -255,12 +250,7 @@ public class Chat {
             // TODO: Mix columns here
 
             // Add Round Key
-            count = 0;
-            for (int col = 0; col < MATRIX_LEN; col++) {
-                for (int row = 0; row < MATRIX_LEN; row++) {
-                    matrix[col][row] ^= roundKeys[round][count++];
-                }
-            }
+            addRoundKey(matrix, roundKeys);
         }
 
         // Final round (10)
@@ -270,15 +260,10 @@ public class Chat {
         // TODO: Shift rows here
 
         // AddRoundKey
-        count = 0;
-        for (int col = 0; col < MATRIX_LEN; col++) {
-            for (int row = 0; row < MATRIX_LEN; row++) {
-                matrix[col][row] ^= roundKeys[NUM_ROUNDS][count++];
-            }
-        }
+        addRoundKey(matrix, roundKeys);
 
         // Extract ciphertext
-        count = 0;
+        int count = 0;
         byte[] ciphertext = new byte[16];
         for (int col = 0; col < MATRIX_LEN; col++) {
             for (int row = 0; row < MATRIX_LEN; row++) {
@@ -287,6 +272,16 @@ public class Chat {
         }
 
         return ciphertext;
+    }
+
+
+    private void addRoundKey(byte[][] matrix, byte[][] roundKeys) {
+        int count = 0;
+        for (int col = 0; col < MATRIX_LEN; col++) {
+            for (int row = 0; row < MATRIX_LEN; row++) {
+                matrix[col][row] ^= roundKeys[NUM_ROUNDS][count++];
+            }
+        }
     }
 
     /**
