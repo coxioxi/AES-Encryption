@@ -223,7 +223,7 @@ public class Chat {
         }
 
         // Initial Round: Add round key
-        addRoundKey(matrix, roundKeys);
+        addRoundKey(matrix, roundKeys[0]);
 
         // Normal rounds (1-9)
         for (int round = 1; round < NUM_ROUNDS; round++) {
@@ -231,22 +231,26 @@ public class Chat {
             // Substitute bytes
             substituteByte(matrix);
 
-            // TODO: Shift rows here
+            // Shift rows here
+            shiftRows(matrix);
 
             // TODO: Mix columns here
 
+
             // Add Round Key
-            addRoundKey(matrix, roundKeys);
+            addRoundKey(matrix, roundKeys[round]);
         }
 
         // Final round (10)
 
-        // TODO: Substitute bytes
+        // Substitute bytes
         substituteByte(matrix);
-        // TODO: Shift rows here
+
+        // Shift rows here
+        shiftRows(matrix);
 
         // AddRoundKey
-        addRoundKey(matrix, roundKeys);
+        addRoundKey(matrix, roundKeys[NUM_ROUNDS]);
 
         // Extract ciphertext
         int count = 0;
@@ -258,16 +262,6 @@ public class Chat {
         }
 
         return ciphertext;
-    }
-
-
-    private void addRoundKey(byte[][] matrix, byte[][] roundKeys) {
-        int count = 0;
-        for (int col = 0; col < MATRIX_LEN; col++) {
-            for (int row = 0; row < MATRIX_LEN; row++) {
-                matrix[col][row] ^= roundKeys[NUM_ROUNDS][count++];
-            }
-        }
     }
 
     /**
