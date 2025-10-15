@@ -5,6 +5,7 @@ import java.math.BigInteger;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.Arrays;
 import java.util.Random;
 import java.util.Scanner;
 
@@ -129,7 +130,16 @@ public class Chat {
 
         BigInteger AValue = (BigInteger) netIn.readObject();
         byte[] largeKey = AValue.modPow(b, P).toByteArray();
-        System.arraycopy(largeKey, 0, key, 0, KEY_LENGTH); // Take only the first 16 bits from original key
+        System.arraycopy(largeKey, 0, key, 0, KEY_LENGTH); // Take only the first 16 bytes from original key
+        System.out.println("Key: " + Arrays.toString(key));
+
+        // Debug print
+        System.out.println();
+        byte[][] keys = expandKey(key);
+        for (int i = 0; i < keys.length; i++) {
+            System.out.println("Round " + i + " Key: " + Arrays.toString(keys[i]));
+        }
+        System.out.println();
 
         sender = new Sender();
         receiver = new Receiver();
@@ -155,12 +165,8 @@ public class Chat {
                         originalMessageLen = line.getBytes().length;
 
                         // Padding the message with 0s so it is a multiple of 16
-                        int padding = 0;
-                        if(line.getBytes().length % KEY_LENGTH != 0){
-                            padding = KEY_LENGTH - line.getBytes().length % KEY_LENGTH; // Number of 0's to add to message
-                        }
-                        byte[] bytes = new byte[line.getBytes().length + padding];
-                        System.arraycopy(line.getBytes(), 0, bytes, 0, line.getBytes().length);
+                        byte[] bytes = padding();
+                        System.arraycopy(line.getBytes(), 0, bytes, 0, originalMessageLen);
 
                         // TODO: Encrypt bytes here before sending them
 
@@ -177,6 +183,22 @@ public class Chat {
                 } catch( IOException e ) {}
             }
         }
+    }
+
+    /**
+     * Pads the input string to make its length a multiple of the AES block size (16 bytes).
+     *
+     * @return a byte array with zero-padding added as needed
+     */
+    private byte[] padding() {
+        int padding = 0;
+
+        if(originalMessageLen > KEY_LENGTH && originalMessageLen % KEY_LENGTH != 0)
+            padding = KEY_LENGTH - originalMessageLen % KEY_LENGTH; // Number of 0's to add to message
+        else if (originalMessageLen < KEY_LENGTH)
+            padding = KEY_LENGTH - originalMessageLen; // Number of 0's to add to message if message is shorter than 16
+
+        return new byte[originalMessageLen + padding];
     }
 
     /**
@@ -201,7 +223,7 @@ public class Chat {
         }
 
         // Initial Round: Add round key
-        addRoundKey(matrix,roundKeys[0]); //0 because first round
+        addRoundKey(matrix, roundKeys);
 
         // Normal rounds (1-9)
         for (int round = 1; round < NUM_ROUNDS; round++) {
@@ -214,8 +236,7 @@ public class Chat {
             // TODO: Mix columns here
 
             // Add Round Key
-            addRoundKey(matrix,roundKeys[round]);
-
+            addRoundKey(matrix, roundKeys);
         }
 
         // Final round (10)
@@ -225,7 +246,7 @@ public class Chat {
         // TODO: Shift rows here
 
         // AddRoundKey
-        addRoundKey(matrix,roundKeys[NUM_ROUNDS]);
+        addRoundKey(matrix, roundKeys);
 
         // Extract ciphertext
         int count = 0;
@@ -239,9 +260,19 @@ public class Chat {
         return ciphertext;
     }
 
+
+    private void addRoundKey(byte[][] matrix, byte[][] roundKeys) {
+        int count = 0;
+        for (int col = 0; col < MATRIX_LEN; col++) {
+            for (int row = 0; row < MATRIX_LEN; row++) {
+                matrix[col][row] ^= roundKeys[NUM_ROUNDS][count++];
+            }
+        }
+    }
+
     /**
      * Expands a 16-byte AES key into all round keys.
-     * Generates NUM_ROUNDS + 1 round keys (16 bytes each) for AES encryption.
+     * Generates NUM_ROUNDS + 1 round keys for AES encryption.
      *
      * @param key the original 16-byte AES key
      * @return a 2D array of round keys, each 16 bytes
@@ -350,6 +381,7 @@ public class Chat {
             }
         }
     }
+  
     private void shiftRows(byte[][] matrix){
             byte[] matrixRow = new byte[4];
 
