@@ -232,7 +232,7 @@ public class Chat {
             substituteByte(matrix);
 
             // TODO: Shift rows here
-
+            shiftRows(matrix);
             // TODO: Mix columns here
 
             // Add Round Key
@@ -244,7 +244,7 @@ public class Chat {
         // TODO: Substitute bytes
         substituteByte(matrix);
         // TODO: Shift rows here
-
+        shiftRows(matrix);
         // AddRoundKey
         addRoundKey(matrix, roundKeys);
 
@@ -395,4 +395,24 @@ public class Chat {
             }
 
     }
+    private void mixColumns(byte [][] matrix ){
+
+    }
+    private byte galoisField(byte a, byte b){
+        byte p = 0;
+        for(int i = 0; i<8; i++){
+           if((b&1) != 0){ /* checking to make sure that b is 1*/
+               p^=a;
+           }
+           boolean hi_bit_set = (a & 0x80) != 0; //checks if a equals 8
+           a <<= 1; //increasing the value of a by a*2^1
+           if(hi_bit_set){
+               a ^= 0x1B;  /* x^8 + x^4 + x^3 + x + 1 */
+           }
+           b>>=1; //b goes down every interation
+
+        }
+        return p;
+    }
+
 }
