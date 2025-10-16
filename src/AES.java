@@ -141,6 +141,7 @@ public class AES {
             b >>= 1;
         }
 
+
         p &= 0xff;
 
         return (byte)p;
