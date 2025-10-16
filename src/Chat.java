@@ -162,6 +162,76 @@ public class Chat {
         return new byte[originalMessageLen + padding];
     }
 
+    /**
+     * Encrypts a 16-byte plaintext block using AES-128.
+     * Performs key expansion, initial AddRoundKey, 9 normal rounds
+     * (Substitute Bytes, Shift Rows, Mix Columns, Add Round Key), and the final round.
+     *
+     * @param bytes 16-byte plaintext block
+     * @return 16-byte ciphertext block
+     */
+    private byte[] AESEncryption(byte[] bytes){
+        byte[][] matrix = new byte[MATRIX_LEN][MATRIX_LEN]; //every 16 bytes of message
+        byte[][] roundKeys = expandKey(key);
+
+        // Load data into state matrix
+        for (byte aByte : bytes) {
+            for (int col = 0; col < MATRIX_LEN; col++) {
+                for (int row = 0; row < MATRIX_LEN; row++) {
+                    matrix[row][col] = aByte;
+                }
+            }
+        }
+
+        // Initial Round: Add round key
+        addRoundKey(matrix, roundKeys[0]);
+
+        // Normal rounds (1-9)
+        for (int round = 1; round < NUM_ROUNDS; round++) {
+
+            // Substitute bytes
+            substituteByte(matrix);
+
+            // Shift rows here
+            shiftRows(matrix, false);
+
+            // TODO: Mix columns here
+
+
+            // Add Round Key
+            addRoundKey(matrix, roundKeys[round]);
+        }
+
+        // Final round (10)
+
+        // Substitute bytes
+        substituteByte(matrix);
+
+        // Shift rows here
+        shiftRows(matrix, false);
+
+        // AddRoundKey
+        addRoundKey(matrix, roundKeys[NUM_ROUNDS]);
+
+        // Extract ciphertext
+        int count = 0;
+        byte[] ciphertext = new byte[16];
+        for (int col = 0; col < MATRIX_LEN; col++) {
+            for (int row = 0; row < MATRIX_LEN; row++) {
+                ciphertext[count++] = matrix[col][row];
+            }
+        }
+
+        return ciphertext;
+    }
+
+    /**
+     * Expands a 16-byte AES key into all round keys.
+     * Generates NUM_ROUNDS + 1 round keys for AES encryption.
+     *
+     * @param key the original 16-byte AES key
+     * @return a 2D array of round keys, each 16 bytes
+     */
 
 
     private class Receiver extends Thread {
@@ -189,7 +259,33 @@ public class Chat {
         }
     }
 
+    private void substituteByte(byte[][] matrix){
+        for (int col = 0; col < MATRIX_LEN; col++) {
+            for (int row = 0; row < MATRIX_LEN; row++) {
+                matrix[row][col] = (byte) S_BOX[matrix[row][col] & 0xFF]; // Normalize index to be between 0 and 255, inclusive.
+            }
+        }
+    }
+  
+    private void shiftRows(byte[][] matrix, boolean inverse){
+        byte[] matrixRow = new byte[4];
 
+        for (int row = 1; row < MATRIX_LEN; row++) {
+            System.arraycopy(matrix[row], 0, matrixRow, 0, MATRIX_LEN);
+        }
 
-
+        if(!inverse) {
+            for (int row = 1; row < MATRIX_LEN; row++) {
+                for (int column = 0; column < MATRIX_LEN; column++) { // Shift rows left
+                    matrix[row][column] = matrixRow[(column + row) % MATRIX_LEN];
+                }
+            }
+        } else {
+            for (int row = 1; row < MATRIX_LEN; row++) {
+                for (int col = 0; col < MATRIX_LEN; col++) { // Shift rows right
+                    matrix[row][col] = matrixRow[(col - row + MATRIX_LEN) % MATRIX_LEN];
+                }
+            }
+        }
+    }
 }
