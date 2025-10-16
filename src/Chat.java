@@ -379,25 +379,20 @@ public class Chat {
     private void shiftRows(byte[][] matrix, boolean inverse){
         byte[] matrixRow = new byte[4];
 
+        for (int row = 1; row < MATRIX_LEN; row++) {
+            System.arraycopy(matrix[row], 0, matrixRow, 0, MATRIX_LEN);
+        }
+
         if(!inverse) {
             for (int row = 1; row < MATRIX_LEN; row++) {
-                for (int column = 0; column < MATRIX_LEN; column++) {
-                    matrixRow[column] = matrix[row][column];
-                }
-
-                for (int column = 0; column < MATRIX_LEN; column++) {
+                for (int column = 0; column < MATRIX_LEN; column++) { // Shift rows left
                     matrix[row][column] = matrixRow[(column + row) % MATRIX_LEN];
                 }
             }
         } else {
             for (int row = 1; row < MATRIX_LEN; row++) {
-                for (int col = 0; col < MATRIX_LEN; col++) {
-                    matrixRow[col] = matrix[row][col];
-                }
-
-
-                for (int col = 0; col < MATRIX_LEN; col++) {
-
+                for (int col = 0; col < MATRIX_LEN; col++) { // Shift rows right
+                    matrix[row][col] = matrixRow[(col - row + MATRIX_LEN) % MATRIX_LEN];
                 }
             }
         }
