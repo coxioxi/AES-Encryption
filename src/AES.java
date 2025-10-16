@@ -1,4 +1,5 @@
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 public class AES {
     public AES(byte[]key){
@@ -64,6 +65,42 @@ public class AES {
         }
     }
 
+    private void shiftRows(byte[][] matrix, boolean inverse){
+        byte[] matrixRow = new byte[4];
+
+        for (int row = 1; row < MATRIX_LEN; row++) {
+            System.arraycopy(matrix[row], 0, matrixRow, 0, MATRIX_LEN);
+        }
+
+        if(!inverse) {
+            for (int row = 1; row < MATRIX_LEN; row++) {
+                for (int column = 0; column < MATRIX_LEN; column++) { // Shift rows left
+                    matrix[row][column] = matrixRow[(column + row) % MATRIX_LEN];
+                }
+            }
+        } else {
+            for (int row = 1; row < MATRIX_LEN; row++) {
+                for (int col = 0; col < MATRIX_LEN; col++) { // Shift rows right
+                    matrix[row][col] = matrixRow[(col - row + MATRIX_LEN) % MATRIX_LEN];
+                }
+            }
+        }
+    }
+
+    private static void inverseMixColumns(byte[][] state) {
+        byte[] a = new byte[MATRIX_LEN];
+
+        for (int j = 0; j < MATRIX_LEN; ++j) {
+            for (int i = 0; i < MATRIX_LEN; ++i)
+                a[i] = state[i][j];
+
+            state[0][j] = (byte) (galoisMultiply(a[0],14) ^ galoisMultiply(a[3],9) ^ galoisMultiply(a[2],13) ^ galoisMultiply(a[1],11));
+            state[1][j] = (byte) (galoisMultiply(a[1],14) ^ galoisMultiply(a[0],9) ^ galoisMultiply(a[3],13) ^ galoisMultiply(a[2],11));
+            state[2][j] = (byte) (galoisMultiply(a[2],14) ^ galoisMultiply(a[1],9) ^ galoisMultiply(a[0],13) ^ galoisMultiply(a[3],11));
+            state[3][j] = (byte) (galoisMultiply(a[3],14) ^ galoisMultiply(a[2],9) ^ galoisMultiply(a[1],13) ^ galoisMultiply(a[0],11));
+        }
+    }
+
     private void shiftRows(byte[][] matrix){
         byte[] matrixRow = new byte[4];
         for(int row = 1; row < MATRIX_LEN; row++) {
@@ -75,24 +112,6 @@ public class AES {
             }
         }
     }
-    /*
-    private byte galoisField(byte a, byte b){
-        byte p = 0;
-        for(int i = 0; i<8; i++){
-           if((b&1) != 0){ // checking to make sure that b is 1
-               p^=a;
-           }
-           boolean hi_bit_set = (a & 0x80) != 0; //checks if a equals 8
-           a <<= 1; //increasing the value of a by a*2^1
-           if(hi_bit_set){
-               a ^= 0x1B;  // x^8 + x^4 + x^3 + x + 1
-           }
-           b>>=1; //b goes down every iteration
-
-        }
-        return p;
-    }
-    */
 
     private static void mixColumns(byte[][]matrix){
         byte[][] mixColumnMatrix = {
@@ -294,7 +313,7 @@ public class AES {
         byte[] ciphertext = new byte[16];
         for (int col = 0; col < MATRIX_LEN; col++) {
             for (int row = 0; row < MATRIX_LEN; row++) {
-                ciphertext[count++] = matrix[col][row];
+                ciphertext[count++] = matrix[row][col];
             }
         }
 
