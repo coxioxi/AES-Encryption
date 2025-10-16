@@ -234,7 +234,7 @@ public class Chat {
             // TODO: Shift rows here
             shiftRows(matrix);
             // TODO: Mix columns here
-
+            mixColumns(matrix);
             // Add Round Key
             addRoundKey(matrix, roundKeys);
         }
@@ -384,7 +384,6 @@ public class Chat {
   
     private void shiftRows(byte[][] matrix){
             byte[] matrixRow = new byte[4];
-
             for(int row = 1; row < MATRIX_LEN; row++) {
                     for(int column = 0; column<MATRIX_LEN; column++){
                         matrixRow[column] = matrix[row][column];
@@ -393,26 +392,79 @@ public class Chat {
                         matrix[row][column] = matrixRow[(column+row)%MATRIX_LEN];
                     }
             }
-
     }
-    private void mixColumns(byte [][] matrix ){
-
-    }
+    /*
     private byte galoisField(byte a, byte b){
         byte p = 0;
         for(int i = 0; i<8; i++){
-           if((b&1) != 0){ /* checking to make sure that b is 1*/
+           if((b&1) != 0){ // checking to make sure that b is 1
                p^=a;
            }
            boolean hi_bit_set = (a & 0x80) != 0; //checks if a equals 8
            a <<= 1; //increasing the value of a by a*2^1
            if(hi_bit_set){
-               a ^= 0x1B;  /* x^8 + x^4 + x^3 + x + 1 */
+               a ^= 0x1B;  // x^8 + x^4 + x^3 + x + 1
            }
-           b>>=1; //b goes down every interation
+           b>>=1; //b goes down every iteration
 
         }
         return p;
     }
+    */
+
+    private static void mixColumns(byte[][]matrix){
+        byte[][] mixColumnMatrix = {
+                {(byte)0x02, (byte)0x03, (byte)0x01, (byte)0x01},
+                {(byte)0x01, (byte)0x02, (byte)0x03, (byte)0x01},
+                {(byte)0x01, (byte)0x01, (byte)0x02, (byte)0x03},
+                {(byte)0x03, (byte)0x01, (byte)0x01, (byte)0x02}
+        };
+        byte[][] newMatrix = new byte[MATRIX_LEN][MATRIX_LEN];
+
+        for(int i = 0; i<MATRIX_LEN; i++){ //moving over row in mix col matrix
+            for(int j = 0 ; j<MATRIX_LEN; j++){ // moving over columns of matrix
+                int sumOfRowCol = 0;
+                for (int k = 0; k<MATRIX_LEN; k++){ //move colums of mixcolmatrix
+                    int a = mixColumnMatrix[i][k]; //i,k is row col in mix col matrix
+                    int b = matrix[k][j]; //gets value while moving columns in the original matrix
+                    sumOfRowCol ^= galoisMultiply(a,b);
+                    /*summing (apparently summing is done through xor) the product of
+                     *columns of mixcolmatrix to row values of original matrix
+                     */
+
+                }
+                //out of k loop
+                newMatrix[i][j] = (byte) sumOfRowCol;
+            }
+        }
+        for(int i = 0; i<MATRIX_LEN; i++){
+            for (int j = 0; j<MATRIX_LEN; j++){
+                matrix[i][j] = newMatrix[i][j];
+            }
+        }
+
+    }
+/* code provided by prof wittman */
+    private static byte galoisMultiply(int a, int b) {
+        int p = 0;
+        int highBit;
+
+        for (int i = 0; i < 8; ++i) {
+            if ((b & 1) == 1)
+                p ^= a;
+            highBit = a & 0x80;
+            a <<= 1;
+            if (highBit == 0x80)
+                a ^= 0x1b;
+            b >>= 1;
+        }
+
+        p &= 0xff;
+
+        return (byte)p;
+    }
+
+
+
 
 }
