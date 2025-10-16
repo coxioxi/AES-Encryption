@@ -232,7 +232,7 @@ public class Chat {
             substituteByte(matrix);
 
             // Shift rows here
-            shiftRows(matrix);
+            shiftRows(matrix, false);
 
             // TODO: Mix columns here
 
@@ -247,7 +247,7 @@ public class Chat {
         substituteByte(matrix);
 
         // Shift rows here
-        shiftRows(matrix);
+        shiftRows(matrix, false);
 
         // AddRoundKey
         addRoundKey(matrix, roundKeys[NUM_ROUNDS]);
@@ -376,17 +376,30 @@ public class Chat {
         }
     }
   
-    private void shiftRows(byte[][] matrix){
-            byte[] matrixRow = new byte[4];
+    private void shiftRows(byte[][] matrix, boolean inverse){
+        byte[] matrixRow = new byte[4];
 
-            for(int row = 1; row < MATRIX_LEN; row++) {
-                    for(int column = 0; column<MATRIX_LEN; column++){
-                        matrixRow[column] = matrix[row][column];
-                    }
-                    for(int column = 0; column<MATRIX_LEN; column++){
-                        matrix[row][column] = matrixRow[(column+row)%MATRIX_LEN];
-                    }
+        if(!inverse) {
+            for (int row = 1; row < MATRIX_LEN; row++) {
+                for (int column = 0; column < MATRIX_LEN; column++) {
+                    matrixRow[column] = matrix[row][column];
+                }
+
+                for (int column = 0; column < MATRIX_LEN; column++) {
+                    matrix[row][column] = matrixRow[(column + row) % MATRIX_LEN];
+                }
             }
+        } else {
+            for (int row = 1; row < MATRIX_LEN; row++) {
+                for (int col = 0; col < MATRIX_LEN; col++) {
+                    matrixRow[col] = matrix[row][col];
+                }
 
+
+                for (int col = 0; col < MATRIX_LEN; col++) {
+
+                }
+            }
+        }
     }
 }
