@@ -1,10 +1,19 @@
+/**
+ * AES (Advanced Encryption Standard) implementation using 128-bit key encryption.
+ * This class provides methods for encrypting and decrypting data using
+ * the AES-128 algorithm. It operates on 16-byte (128-bit) blocks and
+ * performs 10 rounds of substitution, permutation, and mixing transformations
+ * based on the Rijndael cipher.
+ *
+ * Authors:	Samuel Costa and Abiral Pokharel
+ * Course:	COMP 4290
+ * Assignment:	Project 2
+ * Date:	10/17/2025
+ */
+
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 
 public class AES {
-    public AES(byte[]key){
-        this.key = key;
-    }
     byte[] key;
     public static final int MATRIX_LEN = 4;
     private static final int NUM_ROUNDS = 10;
@@ -66,6 +75,173 @@ public class AES {
             0xA0, 0xE0, 0x3B, 0x4D, 0xAE, 0x2A, 0xF5, 0xB0, 0xC8, 0xEB, 0xBB, 0x3C, 0x83, 0x53, 0x99, 0x61,
             0x17, 0x2B, 0x04, 0x7E, 0xBA, 0x77, 0xD6, 0x26, 0xE1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0C, 0x7D
     };
+
+    public AES(byte[]key){
+        this.key = key;
+    }
+
+    /**
+     * Encrypts a 16-byte plaintext block using AES-128.
+     * Performs key expansion, initial AddRoundKey, 9 normal rounds
+     * (Substitute Bytes, Shift Rows, Mix Columns, Add Round Key), and the final round.
+     *
+     * @param bytes 16-byte plaintext block
+     * @return 16-byte ciphertext block
+     */
+    public byte[] encrypt(byte[] bytes){
+        byte[][] matrix = new byte[MATRIX_LEN][MATRIX_LEN]; //every 16 bytes of message
+        byte[][] roundKeys = expandKey(key);
+
+        // Load data into state matrix
+        loadState(bytes, matrix);
+
+        // Initial Round: Add round key
+        addRoundKey(matrix, roundKeys[0]);
+
+        // Normal rounds (1-9)
+        for (int round = 1; round < NUM_ROUNDS; round++) {
+
+            // Substitute bytes
+            substituteByte(matrix, false);
+
+            // Substitute bytes
+            shiftRows(matrix, false);
+
+            // Mix columns
+            mixColumns(matrix);
+
+            // Add Round Key
+            addRoundKey(matrix, roundKeys[round]);
+        }
+
+        // Final round (10)
+
+        // Substitute bytes
+        substituteByte(matrix, false);
+        // Shift rows here
+        shiftRows(matrix, false);
+        // AddRoundKey
+        addRoundKey(matrix, roundKeys[10]);
+
+        return extractMessage(matrix); //extract the cypher text
+    }
+
+    public byte[] decrypt(byte[] bytes) {
+        byte[][] matrix = new byte[MATRIX_LEN][MATRIX_LEN]; //every 16 bytes of message
+        byte[][] roundKeys = expandKey(key);
+
+        // Load data into state matrix
+        loadState(bytes, matrix);
+
+        // Final round (10)
+
+        // Add round key
+        addRoundKey(matrix, roundKeys[NUM_ROUNDS]);
+
+        // Inverse shift rows
+        shiftRows(matrix, true);
+
+        // Inverse substitute
+        substituteByte(matrix, true);
+
+        // Inverse normal rounds (9-0)
+        for (int i = NUM_ROUNDS-1; i > 0; i--) {
+            // Add round key
+            addRoundKey(matrix, roundKeys[i]);
+
+            // Inverse Mix Columns
+            inverseMixColumns(matrix);
+
+            // Inverse shift rows
+            shiftRows(matrix, true);
+
+            // Inverse substitute
+            substituteByte(matrix, true);
+        }
+
+        // Add round key
+        addRoundKey(matrix, roundKeys[0]);
+
+        return extractMessage(matrix); //extract the decrypted message
+    }
+
+    /**
+     * Performs the AES key schedule core operation on a 4-byte word.
+     * Shifts bytes, substitutes using the S-box, and XORs the first byte with RCON.
+     *
+     * @param word 4-byte word to transform
+     * @param round the current round number
+     * @return transformed 4-byte word
+     */
+    private byte[] keyScheduleCore(byte[] word, int round){
+        // Shift the 4 bytes in the temporary location one byte to the left
+        byte temp = word[0];
+        word[0] = word[1];
+        word[1] = word[2];
+        word[2] = word[3];
+        word[3] = temp;
+
+        // Replace the 4 shifted bytes in the temporary location with their substitutions from the AES S-box
+        for (int i = 0; i < 4; i++) {
+            word[i] = (byte)S_BOX[word[i] & 0xFF]; // Normalize index to be between 0 and 255, inclusive.
+        }
+
+        // Only the first byte of the temporary location is XORed with the RCON value for the given round
+        word[0] ^= (byte) RCON[round];
+
+        return word;
+    }
+
+    /**
+     * Expands a 16-byte AES key into all round keys.
+     * Generates NUM_ROUNDS + 1 round keys for AES encryption.
+     *
+     * @param key the original 16-byte AES key
+     * @return a 2D array of round keys, each 16 bytes
+     */
+    private byte[][] expandKey(byte[] key){
+        byte[][] roundKeys = new byte[NUM_ROUNDS + 1][KEY_LENGTH]; // 11 round keys of 16 bytes
+        byte[][] words = new byte[WORDS_IN_KEY * (NUM_ROUNDS + 1)][4]; // 44 words of length 4
+
+        // Fill first 4 words with the original key
+        for (int i = 0; i < WORDS_IN_KEY; i++) {
+            System.arraycopy(key, i * 4, words[i], 0, 4);
+        }
+
+        for (int i = WORDS_IN_KEY; i < words.length; i++) {
+            byte[] temp = words[i - 1].clone();
+
+            // Take the last 4 bytes of the previous round key, store it in a temporary location, and run it through the key schedule core
+            if (i % WORDS_IN_KEY == 0) {
+                temp = keyScheduleCore(temp, i / WORDS_IN_KEY); // Divide by 4 to get the round number
+            }
+
+            //After the core, you XOR the data in the temporary location with the corresponding 4
+            //bytes from the previous round key and store it in the temporary location
+            for (int j = 0; j < 4; j++) {
+                words[i][j] = (byte) (words[i - WORDS_IN_KEY][j] ^ temp[j]);
+            }
+        }
+
+        // Combine every 4 words into a 16-byte round key
+        for (int round = 0; round <= NUM_ROUNDS; round++) {
+            for (int i = 0; i < WORDS_IN_KEY; i++) {
+                System.arraycopy(words[round * WORDS_IN_KEY + i], 0, roundKeys[round], i * 4, 4);
+            }
+        }
+
+        return roundKeys;
+    }
+
+    private void loadState(byte[] bytes, byte[][] matrix) {
+        int i = 0;
+        for (int col = 0; col < MATRIX_LEN; col++) {
+            for (int row = 0; row < MATRIX_LEN; row++) {
+                matrix[row][col] = bytes[i++];
+            }
+        }
+    }
+
     private void addRoundKey(byte[][]matrix, byte[] roundKeys){
         // Initial Round: Add round key
         int count = 0;
@@ -117,19 +293,6 @@ public class AES {
             state[2][j] = (byte) (galoisMultiply(a[2],14) ^ galoisMultiply(a[1],9) ^ galoisMultiply(a[0],13) ^ galoisMultiply(a[3],11));
             state[3][j] = (byte) (galoisMultiply(a[3],14) ^ galoisMultiply(a[2],9) ^ galoisMultiply(a[1],13) ^ galoisMultiply(a[0],11));
         }
-    }
-
-    private byte[] extractMessage(byte[][] matrix) {
-        // Extract message
-        int count = 0;
-        byte[] message = new byte[16];
-        for (int col = 0; col < MATRIX_LEN; col++) {
-            for (int row = 0; row < MATRIX_LEN; row++) {
-                message[count++] = matrix[row][col];
-            }
-        }
-
-        return message;
     }
 
     private static void mixColumns(byte[][]matrix){
@@ -186,208 +349,17 @@ public class AES {
         return (byte)p;
     }
 
-    /**
-     * Performs the AES key schedule core operation on a 4-byte word.
-     * Shifts bytes, substitutes using the S-box, and XORs the first byte with RCON.
-     *
-     * @param word 4-byte word to transform
-     * @param round the current round number
-     * @return transformed 4-byte word
-     */
-    private byte[] keyScheduleCore(byte[] word, int round){
-        // Shift the 4 bytes in the temporary location one byte to the left
-        byte temp = word[0];
-        word[0] = word[1];
-        word[1] = word[2];
-        word[2] = word[3];
-        word[3] = temp;
-
-        // Replace the 4 shifted bytes in the temporary location with their substitutions from the AES S-box
-        for (int i = 0; i < 4; i++) {
-            word[i] = (byte)S_BOX[word[i] & 0xFF]; // Normalize index to be between 0 and 255, inclusive.
-        }
-
-        // Only the first byte of the temporary location is XORed with the RCON value for the given round
-        word[0] ^= (byte) RCON[round];
-
-        return word;
-    }
-    /**
-     * Expands a 16-byte AES key into all round keys.
-     * Generates NUM_ROUNDS + 1 round keys for AES encryption.
-     *
-     * @param key the original 16-byte AES key
-     * @return a 2D array of round keys, each 16 bytes
-     */
-
-    //talk to sam about this
-    private byte[][] expandKey(byte[] key){
-        byte[][] roundKeys = new byte[NUM_ROUNDS + 1][KEY_LENGTH]; // 11 round keys of 16 bytes
-        byte[][] words = new byte[WORDS_IN_KEY * (NUM_ROUNDS + 1)][4]; // 44 words of length 4
-
-        // Fill first 4 words with the original key
-        for (int i = 0; i < WORDS_IN_KEY; i++) {
-            System.arraycopy(key, i * 4, words[i], 0, 4);
-        }
-
-        for (int i = WORDS_IN_KEY; i < words.length; i++) {
-            byte[] temp = words[i - 1].clone();
-
-            // Take the last 4 bytes of the previous round key, store it in a temporary location, and run it through the key schedule core
-            if (i % WORDS_IN_KEY == 0) {
-                temp = keyScheduleCore(temp, i / WORDS_IN_KEY); // Divide by 4 to get the round number
-            }
-
-            //After the core, you XOR the data in the temporary location with the corresponding 4
-            //bytes from the previous round key and store it in the temporary location
-            for (int j = 0; j < 4; j++) {
-                words[i][j] = (byte) (words[i - WORDS_IN_KEY][j] ^ temp[j]);
-            }
-        }
-
-        // Combine every 4 words into a 16-byte round key
-        for (int round = 0; round <= NUM_ROUNDS; round++) {
-            for (int i = 0; i < WORDS_IN_KEY; i++) {
-                System.arraycopy(words[round * WORDS_IN_KEY + i], 0, roundKeys[round], i * 4, 4);
-            }
-        }
-
-        return roundKeys;
-    }
-
-    private void loadState(byte[] bytes, byte[][] matrix) {
-        int i = 0;
+    private byte[] extractMessage(byte[][] matrix) {
+        // Extract message
+        int count = 0;
+        byte[] message = new byte[16];
         for (int col = 0; col < MATRIX_LEN; col++) {
             for (int row = 0; row < MATRIX_LEN; row++) {
-                matrix[row][col] = bytes[i++];
+                message[count++] = matrix[row][col];
             }
         }
+
+        return message;
     }
-
-    /**
-     * Encrypts a 16-byte plaintext block using AES-128.
-     * Performs key expansion, initial AddRoundKey, 9 normal rounds
-     * (Substitute Bytes, Shift Rows, Mix Columns, Add Round Key), and the final round.
-     *
-     * @param bytes 16-byte plaintext block
-     * @return 16-byte ciphertext block
-     */
-    private byte[] encrypt(byte[] bytes){
-        byte[][] matrix = new byte[MATRIX_LEN][MATRIX_LEN]; //every 16 bytes of message
-        byte[][] roundKeys = expandKey(key);
-
-        // Load data into state matrix
-        loadState(bytes, matrix);
-
-        //debug
-        System.out.println("Matrix: ");
-        print(matrix);
-
-        // Initial Round: Add round key
-        addRoundKey(matrix, roundKeys[0]);
-        //debug
-        System.out.println("Round Key Matrix: ");
-        print(matrix);
-        // Normal rounds (1-9)
-        for (int round = 1; round < NUM_ROUNDS; round++) {
-
-            // Substitute bytes
-            substituteByte(matrix, false);
-            //debug
-            if(round==1){
-                System.out.println("Substitute Bytes Matrix: ");
-                print(matrix);
-            }
-            // TODO: Shift rows here
-            shiftRows(matrix, false);
-            //debug
-            if(round==1){
-                System.out.println("Shift Bytes Matrix: ");
-                print(matrix);
-            }
-            // TODO: Mix columns here
-            mixColumns(matrix);
-            //debug
-            if(round==1){
-                System.out.println("Mix Col Matrix: ");
-                print(matrix);
-            }
-            // Add Round Key
-            addRoundKey(matrix, roundKeys[round]);
-        }
-
-        // Final round (10)
-
-        // TODO: Substitute bytes
-        substituteByte(matrix, false);
-        // TODO: Shift rows here
-        shiftRows(matrix, false);
-        // AddRoundKey
-        addRoundKey(matrix, roundKeys[10]);
-
-        return extractMessage(matrix); //extract the cypher text
-    }
-
-    private byte[] decrypt(byte[] bytes) {
-        byte[][] matrix = new byte[MATRIX_LEN][MATRIX_LEN]; //every 16 bytes of message
-        byte[][] roundKeys = expandKey(key);
-
-        // Load data into state matrix
-        loadState(bytes, matrix);
-
-        // Final round (10)
-
-        // Add round key
-        addRoundKey(matrix, roundKeys[NUM_ROUNDS]);
-
-        // Inverse shift rows
-        shiftRows(matrix, true);
-
-        // Inverse substitute
-        substituteByte(matrix, true);
-
-        // Inverse normal rounds (9-0)
-        for (int i = NUM_ROUNDS-1; i > 0; i--) {
-            // Add round key
-            addRoundKey(matrix, roundKeys[i]);
-
-            // Inverse Mix Columns
-            inverseMixColumns(matrix);
-
-            // Inverse shift rows
-            shiftRows(matrix, true);
-
-            // Inverse substitute
-            substituteByte(matrix, true);
-        }
-
-        // Add round key
-        addRoundKey(matrix, roundKeys[0]);
-
-        return extractMessage(matrix); //extract the decrypted message
-    }
-
-public static void main(String[] args){
-    AES aes = new AES("Thats my Kung Fu".getBytes(StandardCharsets.US_ASCII));
-    byte[] message = aes.encrypt("Two One Nine Two".getBytes(StandardCharsets.US_ASCII));
-    System.out.println("Encrypted Message: " );
-    print(message);
-
-    System.out.println("Decrypted Message: " );
-    print(aes.decrypt(message));
-}
-private static void print(byte[] msg){
-    for(int i = 0; i<msg.length; i++){
-        System.out.format("%02X ",msg[i]);
-    }
-    System.out.println();
-}
-
-private static void print(byte[][] matrix){
-    for(int i = 0; i<matrix.length; i++){
-        print(matrix[i]);
-    }
-    System.out.println();
-}
 
 }

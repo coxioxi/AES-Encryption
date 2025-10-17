@@ -1,3 +1,15 @@
+/**
+* A simple chat application that enables message exchange between a client and a server
+* over a network connection. This program integrates AES-128 encryption to ensure message
+* confidentiality — encrypting outgoing messages before transmission and decrypting
+* incoming messages upon receipt.
+*
+* Authors:	Samuel Costa and Abiral Pokharel
+* Course:	COMP 4290
+* Assignment:	Project 2
+* Date:	10/17/2025
+*/
+
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -5,10 +17,9 @@ import java.math.BigInteger;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
-import java.util.Arrays;
+import java.nio.charset.StandardCharsets;
 import java.util.Random;
 import java.util.Scanner;
-
 
 public class Chat {
     private Socket socket;
@@ -17,6 +28,7 @@ public class Chat {
     private ObjectInputStream netIn;
     private Sender sender;
     private Receiver receiver;
+
     // Diffie-Hellman public parameters
     public static final BigInteger P = new BigInteger("150396459018121493735075635131373646237977288026821404984994763465102686660455819886399917636523660049699350363718764404398447335124832094110532711100861016024507364395416614225232899925070791132646368926029404477787316146244920422524801906553483223845626883475962886535263377830946785219701760352800897738687");
     public static final BigInteger G = new BigInteger("105003596169089394773278740673883282922302458450353634151991199816363405534040161825176553806702944696699090103171939463118920452576175890312021100994471453870037718208222180811650804379510819329594775775023182511986555583053247825364627124790486621568154018452705388790732042842238310957220975500918398046266");
@@ -24,7 +36,6 @@ public class Chat {
     private byte[] key = new byte[16];
     private int originalMessageLen;
     private static final int KEY_LENGTH = 16;
-
 
     public static void main(String[] args) throws UnknownHostException, IOException {
         Scanner in = new Scanner(System.in);
@@ -92,16 +103,7 @@ public class Chat {
         BigInteger AValue = (BigInteger) netIn.readObject();
         byte[] largeKey = AValue.modPow(b, P).toByteArray();
         System.arraycopy(largeKey, 0, key, 0, KEY_LENGTH); // Take only the first 16 bytes from original key
-        System.out.println("Key: " + Arrays.toString(key));
 
-        /* Debug print
-        System.out.println();
-        byte[][] keys = expandKey(key);
-        for (int i = 0; i < keys.length; i++) {
-            System.out.println("Round " + i + " Key: " + Arrays.toString(keys[i]));
-        }
-        System.out.println();
-        */
         sender = new Sender();
         receiver = new Receiver();
         sender.start();
@@ -113,6 +115,7 @@ public class Chat {
     private class Sender extends Thread {
         public void run() {
             try {
+                AES aes = new AES(key);
                 Scanner in = new Scanner(System.in);
                 System.out.print("Enter your name: ");
                 String name = in.nextLine();
@@ -130,8 +133,18 @@ public class Chat {
                         System.arraycopy(line.getBytes(), 0, bytes, 0, originalMessageLen);
 
                         // TODO: Encrypt bytes here before sending them
+                        byte[] encryptedBytes = new byte[bytes.length];
+                        int paddedLen = ((originalMessageLen + KEY_LENGTH - 1) / KEY_LENGTH) * KEY_LENGTH;
 
-                        netOut.writeObject(bytes);
+                        for (int i = 0; i < paddedLen; i += KEY_LENGTH) {
+                            byte[] block = new byte[KEY_LENGTH];
+                            System.arraycopy(bytes, i, block, 0, KEY_LENGTH);
+
+                            byte[] encryptedBlock = aes.encrypt(block);
+                            System.arraycopy(encryptedBlock, 0, encryptedBytes, i, KEY_LENGTH);
+                        }
+
+                        netOut.writeObject(encryptedBytes);
                         netOut.flush();
                     }
                 }
@@ -166,10 +179,21 @@ public class Chat {
     private class Receiver extends Thread {
         public void run() {
             try {
+                AES aes = new AES(key);
                 while (!socket.isClosed()) {
                     byte[] bytes = (byte[])(netIn.readObject());
                     // TODO: Decrypt bytes here before reconstituting String
-                    String line = new String(bytes);
+                    byte[] decryptedBytes = new byte[bytes.length];
+
+                    for (int i = 0; i < bytes.length; i += KEY_LENGTH) {
+                        byte[] block = new byte[KEY_LENGTH];
+                        System.arraycopy(bytes, i, block, 0, KEY_LENGTH);
+
+                        byte[] decryptedBlock = aes.decrypt(block);
+                        System.arraycopy(decryptedBlock, 0, decryptedBytes, i, KEY_LENGTH);
+                    }
+
+                    String line = new String(decryptedBytes, StandardCharsets.UTF_8).trim();
                     System.out.println(line);
                 }
             } catch (IOException e) {
