@@ -1,4 +1,5 @@
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 public class AES {
     public AES(byte[]key){
@@ -46,6 +47,25 @@ public class AES {
             0xe1,0xf8,0x98,0x11,0x69,0xd9,0x8e,0x94,0x9b,0x1e,0x87,0xe9,0xce,0x55,0x28,0xdf,
             0x8c,0xa1,0x89,0x0d,0xbf,0xe6,0x42,0x68,0x41,0x99,0x2d,0x0f,0xb0,0x54,0xbb,0x16,
     };
+
+    private static final int[] I_S_BOX = {
+            0x52, 0x09, 0x6A, 0xD5, 0x30, 0x36, 0xA5, 0x38, 0xBF, 0x40, 0xA3, 0x9E, 0x81, 0xF3, 0xD7, 0xFB,
+            0x7C, 0xE3, 0x39, 0x82, 0x9B, 0x2F, 0xFF, 0x87, 0x34, 0x8E, 0x43, 0x44, 0xC4, 0xDE, 0xE9, 0xCB,
+            0x54, 0x7B, 0x94, 0x32, 0xA6, 0xC2, 0x23, 0x3D, 0xEE, 0x4C, 0x95, 0x0B, 0x42, 0xFA, 0xC3, 0x4E,
+            0x08, 0x2E, 0xA1, 0x66, 0x28, 0xD9, 0x24, 0xB2, 0x76, 0x5B, 0xA2, 0x49, 0x6D, 0x8B, 0xD1, 0x25,
+            0x72, 0xF8, 0xF6, 0x64, 0x86, 0x68, 0x98, 0x16, 0xD4, 0xA4, 0x5C, 0xCC, 0x5D, 0x65, 0xB6, 0x92,
+            0x6C, 0x70, 0x48, 0x50, 0xFD, 0xED, 0xB9, 0xDA, 0x5E, 0x15, 0x46, 0x57, 0xA7, 0x8D, 0x9D, 0x84,
+            0x90, 0xD8, 0xAB, 0x00, 0x8C, 0xBC, 0xD3, 0x0A, 0xF7, 0xE4, 0x58, 0x05, 0xB8, 0xB3, 0x45, 0x06,
+            0xD0, 0x2C, 0x1E, 0x8F, 0xCA, 0x3F, 0x0F, 0x02, 0xC1, 0xAF, 0xBD, 0x03, 0x01, 0x13, 0x8A, 0x6B,
+            0x3A, 0x91, 0x11, 0x41, 0x4F, 0x67, 0xDC, 0xEA, 0x97, 0xF2, 0xCF, 0xCE, 0xF0, 0xB4, 0xE6, 0x73,
+            0x96, 0xAC, 0x74, 0x22, 0xE7, 0xAD, 0x35, 0x85, 0xE2, 0xF9, 0x37, 0xE8, 0x1C, 0x75, 0xDF, 0x6E,
+            0x47, 0xF1, 0x1A, 0x71, 0x1D, 0x29, 0xC5, 0x89, 0x6F, 0xB7, 0x62, 0x0E, 0xAA, 0x18, 0xBE, 0x1B,
+            0xFC, 0x56, 0x3E, 0x4B, 0xC6, 0xD2, 0x79, 0x20, 0x9A, 0xDB, 0xC0, 0xFE, 0x78, 0xCD, 0x5A, 0xF4,
+            0x1F, 0xDD, 0xA8, 0x33, 0x88, 0x07, 0xC7, 0x31, 0xB1, 0x12, 0x10, 0x59, 0x27, 0x80, 0xEC, 0x5F,
+            0x60, 0x51, 0x7F, 0xA9, 0x19, 0xB5, 0x4A, 0x0D, 0x2D, 0xE5, 0x7A, 0x9F, 0x93, 0xC9, 0x9C, 0xEF,
+            0xA0, 0xE0, 0x3B, 0x4D, 0xAE, 0x2A, 0xF5, 0xB0, 0xC8, 0xEB, 0xBB, 0x3C, 0x83, 0x53, 0x99, 0x61,
+            0x17, 0x2B, 0x04, 0x7E, 0xBA, 0x77, 0xD6, 0x26, 0xE1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0C, 0x7D
+    };
     private void addRoundKey(byte[][]matrix, byte[] roundKeys){
         // Initial Round: Add round key
         int count = 0;
@@ -56,43 +76,58 @@ public class AES {
         }
     }
 
-    private void substituteByte(byte[][] matrix){
+    /**
+     * individual bytes in the matrix are substituted for other bytes using an S-box
+     *
+     * @param matrix the message
+     * @param inverse a false we do the regular substitution and if true we do the inverse for decryption
+     */
+    private void substituteByte(byte[][] matrix, boolean inverse){
+        int[] box = inverse ? I_S_BOX : S_BOX;
+
         for (int col = 0; col < MATRIX_LEN; col++) {
             for (int row = 0; row < MATRIX_LEN; row++) {
-                matrix[row][col] = (byte) S_BOX[matrix[row][col] & 0xFF]; // Normalize index to be between 0 and 255, inclusive.
+                matrix[row][col] = (byte) box[matrix[row][col] & 0xFF]; // Normalize index to be between 0 and 255, inclusive.
             }
         }
     }
 
-    private void shiftRows(byte[][] matrix){
+    private void shiftRows(byte[][] matrix, boolean inverse){
         byte[] matrixRow = new byte[4];
-        for(int row = 1; row < MATRIX_LEN; row++) {
-            for(int column = 0; column<MATRIX_LEN; column++){
-                matrixRow[column] = matrix[row][column];
-            }
-            for(int column = 0; column<MATRIX_LEN; column++){
-                matrix[row][column] = matrixRow[(column+row)%MATRIX_LEN];
-            }
-        }
-    }
-    /*
-    private byte galoisField(byte a, byte b){
-        byte p = 0;
-        for(int i = 0; i<8; i++){
-           if((b&1) != 0){ // checking to make sure that b is 1
-               p^=a;
-           }
-           boolean hi_bit_set = (a & 0x80) != 0; //checks if a equals 8
-           a <<= 1; //increasing the value of a by a*2^1
-           if(hi_bit_set){
-               a ^= 0x1B;  // x^8 + x^4 + x^3 + x + 1
-           }
-           b>>=1; //b goes down every iteration
+        int sign = inverse ? -1 : 1; // If decrypting, subtract row otherwise add row
 
+        for (int row = 1; row < MATRIX_LEN; row++) {
+            for (int col = 0; col < MATRIX_LEN; col++)
+                matrixRow[col] = matrix[row][col];
+
+            for (int column = 0; column < MATRIX_LEN; column++)  // Shift rows left
+                matrix[row][column] = matrixRow[(column + row * sign + MATRIX_LEN) % MATRIX_LEN];
         }
-        return p;
     }
-    */
+
+    private static void inverseMixColumns(byte[][] state) {
+        byte[] a = new byte[MATRIX_LEN];
+
+        for (int j = 0; j < MATRIX_LEN; ++j) {
+            for (int i = 0; i < MATRIX_LEN; ++i)
+                a[i] = state[i][j];
+
+            state[0][j] = (byte) (galoisMultiply(a[0],14) ^ galoisMultiply(a[3],9) ^ galoisMultiply(a[2],13) ^ galoisMultiply(a[1],11));
+            state[1][j] = (byte) (galoisMultiply(a[1],14) ^ galoisMultiply(a[0],9) ^ galoisMultiply(a[3],13) ^ galoisMultiply(a[2],11));
+            state[2][j] = (byte) (galoisMultiply(a[2],14) ^ galoisMultiply(a[1],9) ^ galoisMultiply(a[0],13) ^ galoisMultiply(a[3],11));
+            state[3][j] = (byte) (galoisMultiply(a[3],14) ^ galoisMultiply(a[2],9) ^ galoisMultiply(a[1],13) ^ galoisMultiply(a[0],11));
+        }
+    }
+
+    private void extractMessage(byte[] message,byte[][] matrix,int location) {
+        // Extract message
+        int count = location;
+        for (int col = 0; col < MATRIX_LEN; col++) {
+            for (int row = 0; row < MATRIX_LEN; row++) {
+                message[count++] = matrix[row][col];
+            }
+        }
+    }
 
     private static void mixColumns(byte[][]matrix){
         byte[][] mixColumnMatrix = {
@@ -126,6 +161,7 @@ public class AES {
         }
 
     }
+
     /* code provided by prof wittman */
     private static byte galoisMultiply(int a, int b) {
         int p = 0;
@@ -216,14 +252,15 @@ public class AES {
         return roundKeys;
     }
 
-    private void addRoundKey(byte[][] matrix, byte[][] roundKeys) {
-        int count = 0;
+    private void loadState(byte[] bytes, byte[][] matrix, int location) {
+        int i = location;
         for (int col = 0; col < MATRIX_LEN; col++) {
             for (int row = 0; row < MATRIX_LEN; row++) {
-                matrix[col][row] ^= roundKeys[NUM_ROUNDS][count++];
+                matrix[row][col] = bytes[i++];
             }
         }
     }
+
     /**
      * Encrypts a 16-byte plaintext block using AES-128.
      * Performs key expansion, initial AddRoundKey, 9 normal rounds
@@ -232,50 +269,27 @@ public class AES {
      * @param bytes 16-byte plaintext block
      * @return 16-byte ciphertext block
      */
-    private byte[] encrypt(byte[] bytes){
+    public void encrypt(byte[] bytes,int location){
         byte[][] matrix = new byte[MATRIX_LEN][MATRIX_LEN]; //every 16 bytes of message
         byte[][] roundKeys = expandKey(key);
 
         // Load data into state matrix
-        int i = 0;
-            for (int col = 0; col < MATRIX_LEN; col++) {
-                for (int row = 0; row < MATRIX_LEN; row++) {
-                    matrix[row][col] = bytes[i++];
-                }
-            }
-        //debug
-        System.out.println("Matrix: ");
-        print(matrix);
+        loadState(bytes, matrix, location);
+
 
         // Initial Round: Add round key
         addRoundKey(matrix, roundKeys[0]);
-        //debug
-        System.out.println("Round Key Matrix: ");
-        print(matrix);
+
         // Normal rounds (1-9)
         for (int round = 1; round < NUM_ROUNDS; round++) {
 
             // Substitute bytes
-            substituteByte(matrix);
-            //debug
-            if(round==1){
-                System.out.println("Substitute Bytes Matrix: ");
-                print(matrix);
-            }
+            substituteByte(matrix, false);
+
             // TODO: Shift rows here
-            shiftRows(matrix);
-            //debug
-            if(round==1){
-                System.out.println("Shift Bytes Matrix: ");
-                print(matrix);
-            }
+            shiftRows(matrix, false);
             // TODO: Mix columns here
             mixColumns(matrix);
-            //debug
-            if(round==1){
-                System.out.println("Mix Col Matrix: ");
-                print(matrix);
-            }
             // Add Round Key
             addRoundKey(matrix, roundKeys[round]);
         }
@@ -283,42 +297,77 @@ public class AES {
         // Final round (10)
 
         // TODO: Substitute bytes
-        substituteByte(matrix);
+        substituteByte(matrix, false);
         // TODO: Shift rows here
-        shiftRows(matrix);
+        shiftRows(matrix, false);
         // AddRoundKey
         addRoundKey(matrix, roundKeys[10]);
 
-        // Extract ciphertext
-        int count = 0;
-        byte[] ciphertext = new byte[16];
-        for (int col = 0; col < MATRIX_LEN; col++) {
-            for (int row = 0; row < MATRIX_LEN; row++) {
-                ciphertext[count++] = matrix[col][row];
-            }
-        }
-
-        return ciphertext;
+        extractMessage(bytes,matrix,location); //extract the cypher text
     }
 
-public static void main(String[] args){
+    public void decrypt(byte[] bytes,int location) {
+        byte[][] matrix = new byte[MATRIX_LEN][MATRIX_LEN]; //every 16 bytes of message
+        byte[][] roundKeys = expandKey(key);
+
+        // Load data into state matrix
+        loadState(bytes, matrix,location);
+
+        // Final round (10)
+
+        // Add round key
+        addRoundKey(matrix, roundKeys[NUM_ROUNDS]);
+
+        // Inverse shift rows
+        shiftRows(matrix, true);
+
+        // Inverse substitute
+        substituteByte(matrix, true);
+
+        // Inverse normal rounds (9-0)
+        for (int i = NUM_ROUNDS-1; i > 0; i--) {
+            // Add round key
+            addRoundKey(matrix, roundKeys[i]);
+
+            // Inverse Mix Columns
+            inverseMixColumns(matrix);
+
+            // Inverse shift rows
+            shiftRows(matrix, true);
+
+            // Inverse substitute
+            substituteByte(matrix, true);
+        }
+
+        // Add round key
+        addRoundKey(matrix, roundKeys[0]);
+
+        extractMessage(bytes,matrix,location); //extract the decrypted message
+    }
+
+    public static void main(String[] args){
         AES aes = new AES("Thats my Kung Fu".getBytes(StandardCharsets.US_ASCII));
-        byte[] message = aes.encrypt("Two One Nine Two".getBytes(StandardCharsets.US_ASCII));
+        byte[] message = "Two One Nine Two".getBytes(StandardCharsets.US_ASCII);
+        aes.encrypt(message,0);
+        System.out.println("Encrypted Message: " );
         print(message);
 
-}
-private static void print(byte[] msg){
+        System.out.println("Decrypted Message: " );
+        aes.decrypt(message,0);
+        System.out.println(new String(message,StandardCharsets.UTF_8));
+    }
+    private static void print(byte[] msg){
         for(int i = 0; i<msg.length; i++){
             System.out.format("%02X ",msg[i]);
         }
         System.out.println();
-}
-
-private static void print(byte[][] matrix){
-    for(int i = 0; i<matrix.length; i++){
-        print(matrix[i]);
     }
-    System.out.println();
-}
+
+    private static void print(byte[][] matrix){
+        for(int i = 0; i<matrix.length; i++){
+            print(matrix[i]);
+        }
+        System.out.println();
+    }
 
 }

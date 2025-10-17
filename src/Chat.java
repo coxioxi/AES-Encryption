@@ -5,6 +5,7 @@ import java.math.BigInteger;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.Scanner;
@@ -22,7 +23,7 @@ public class Chat {
     public static final BigInteger G = new BigInteger("105003596169089394773278740673883282922302458450353634151991199816363405534040161825176553806702944696699090103171939463118920452576175890312021100994471453870037718208222180811650804379510819329594775775023182511986555583053247825364627124790486621568154018452705388790732042842238310957220975500918398046266");
     public static final int LENGTH = 1023;
     private byte[] key = new byte[16];
-    private int originalMessageLen;
+    //private int originalMessageLen;
     private static final int KEY_LENGTH = 16;
 
 
@@ -92,7 +93,7 @@ public class Chat {
         BigInteger AValue = (BigInteger) netIn.readObject();
         byte[] largeKey = AValue.modPow(b, P).toByteArray();
         System.arraycopy(largeKey, 0, key, 0, KEY_LENGTH); // Take only the first 16 bytes from original key
-        System.out.println("Key: " + Arrays.toString(key));
+        //debug: System.out.println("Key: " + Arrays.toString(key));
 
         /* Debug print
         System.out.println();
@@ -113,6 +114,7 @@ public class Chat {
     private class Sender extends Thread {
         public void run() {
             try {
+                AES aes = new AES(key);
                 Scanner in = new Scanner(System.in);
                 System.out.print("Enter your name: ");
                 String name = in.nextLine();
@@ -123,14 +125,15 @@ public class Chat {
                         return;
                     } else {
                         String line = name + ": " + buffer;
-                        originalMessageLen = line.getBytes().length;
-
+                        //originalMessageLen = line.getBytes().length;
                         // Padding the message with 0s so it is a multiple of 16
-                        byte[] bytes = padding();
-                        System.arraycopy(line.getBytes(), 0, bytes, 0, originalMessageLen);
-
+                        byte[] bytes = line.getBytes();
+                        bytes = padding(bytes);
+                        //System.arraycopy(line.getBytes(), 0, bytes, 0, originalMessageLen);
                         // TODO: Encrypt bytes here before sending them
-
+                        for(int i = 0; i<bytes.length/16;i++){
+                            aes.encrypt(bytes,i*16);
+                        }
                         netOut.writeObject(bytes);
                         netOut.flush();
                     }
@@ -151,96 +154,37 @@ public class Chat {
      *
      * @return a byte array with zero-padding added as needed
      */
-    private byte[] padding() {
-        int padding = 0;
-
-        if(originalMessageLen > KEY_LENGTH && originalMessageLen % KEY_LENGTH != 0)
-            padding = KEY_LENGTH - originalMessageLen % KEY_LENGTH; // Number of 0's to add to message
-        else if (originalMessageLen < KEY_LENGTH)
-            padding = KEY_LENGTH - originalMessageLen; // Number of 0's to add to message if message is shorter than 16
-
-        return new byte[originalMessageLen + padding];
+    private byte[] padding(byte[] message) {
+        int padding = (KEY_LENGTH - message.length % KEY_LENGTH)% KEY_LENGTH; // Number of 0's to add to message
+        byte[] newByte = new byte[message.length + padding];
+        System.arraycopy(message, 0, newByte, 0, message.length);
+        return newByte;
     }
-
-    /**
-     * Encrypts a 16-byte plaintext block using AES-128.
-     * Performs key expansion, initial AddRoundKey, 9 normal rounds
-     * (Substitute Bytes, Shift Rows, Mix Columns, Add Round Key), and the final round.
-     *
-     * @param bytes 16-byte plaintext block
-     * @return 16-byte ciphertext block
-     */
-    private byte[] AESEncryption(byte[] bytes){
-        byte[][] matrix = new byte[MATRIX_LEN][MATRIX_LEN]; //every 16 bytes of message
-        byte[][] roundKeys = expandKey(key);
-
-        // Load data into state matrix
-        for (byte aByte : bytes) {
-            for (int col = 0; col < MATRIX_LEN; col++) {
-                for (int row = 0; row < MATRIX_LEN; row++) {
-                    matrix[row][col] = aByte;
-                }
-            }
+    private String removePadding(byte[] message) {
+        int zeroCounter = 0;
+        int i = message.length-1;
+        while(message[i]==0){
+            zeroCounter++;
+            i--;
         }
+        byte[] newMessage = new byte[message.length-zeroCounter];
 
-        // Initial Round: Add round key
-        addRoundKey(matrix, roundKeys[0]);
-
-        // Normal rounds (1-9)
-        for (int round = 1; round < NUM_ROUNDS; round++) {
-
-            // Substitute bytes
-            substituteByte(matrix);
-
-            // Shift rows here
-            shiftRows(matrix, false);
-
-            // TODO: Mix columns here
-
-
-            // Add Round Key
-            addRoundKey(matrix, roundKeys[round]);
-        }
-
-        // Final round (10)
-
-        // Substitute bytes
-        substituteByte(matrix);
-
-        // Shift rows here
-        shiftRows(matrix, false);
-
-        // AddRoundKey
-        addRoundKey(matrix, roundKeys[NUM_ROUNDS]);
-
-        // Extract ciphertext
-        int count = 0;
-        byte[] ciphertext = new byte[16];
-        for (int col = 0; col < MATRIX_LEN; col++) {
-            for (int row = 0; row < MATRIX_LEN; row++) {
-                ciphertext[count++] = matrix[col][row];
-            }
-        }
-
-        return ciphertext;
+        System.arraycopy(message, 0, newMessage, 0, newMessage.length);
+        return new String(newMessage, StandardCharsets.UTF_8);
     }
-
-    /**
-     * Expands a 16-byte AES key into all round keys.
-     * Generates NUM_ROUNDS + 1 round keys for AES encryption.
-     *
-     * @param key the original 16-byte AES key
-     * @return a 2D array of round keys, each 16 bytes
-     */
 
 
     private class Receiver extends Thread {
         public void run() {
+            AES aes = new AES(key);
             try {
                 while (!socket.isClosed()) {
                     byte[] bytes = (byte[])(netIn.readObject());
                     // TODO: Decrypt bytes here before reconstituting String
-                    String line = new String(bytes);
+                   for(int i = 0; i<bytes.length/16; i++){ //think of it like block, each block is 16 bytes
+                       aes.decrypt(bytes,i*16);
+                   }
+                    String line = removePadding(bytes);
                     System.out.println(line);
                 }
             } catch (IOException e) {
@@ -259,33 +203,7 @@ public class Chat {
         }
     }
 
-    private void substituteByte(byte[][] matrix){
-        for (int col = 0; col < MATRIX_LEN; col++) {
-            for (int row = 0; row < MATRIX_LEN; row++) {
-                matrix[row][col] = (byte) S_BOX[matrix[row][col] & 0xFF]; // Normalize index to be between 0 and 255, inclusive.
-            }
-        }
-    }
-  
-    private void shiftRows(byte[][] matrix, boolean inverse){
-        byte[] matrixRow = new byte[4];
 
-        for (int row = 1; row < MATRIX_LEN; row++) {
-            System.arraycopy(matrix[row], 0, matrixRow, 0, MATRIX_LEN);
-        }
 
-        if(!inverse) {
-            for (int row = 1; row < MATRIX_LEN; row++) {
-                for (int column = 0; column < MATRIX_LEN; column++) { // Shift rows left
-                    matrix[row][column] = matrixRow[(column + row) % MATRIX_LEN];
-                }
-            }
-        } else {
-            for (int row = 1; row < MATRIX_LEN; row++) {
-                for (int col = 0; col < MATRIX_LEN; col++) { // Shift rows right
-                    matrix[row][col] = matrixRow[(col - row + MATRIX_LEN) % MATRIX_LEN];
-                }
-            }
-        }
-    }
+
 }
